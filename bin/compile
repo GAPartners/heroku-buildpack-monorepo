@@ -18,10 +18,40 @@ if [ ! -f "${ENV_DIR}/APP_BASE" ]; then
 fi
 APP_BASE="$(cat "${ENV_DIR}/APP_BASE")"
 
+# APP_EXTRA (optional): directories outside APP_BASE that the app needs at build
+# time, comma- or space-separated and relative to the repo root - for example
+# `gems`, so a Gemfile `path:` gem living beside the app survives the hoist.
+#
+# Each one is moved INTO the staged app at the same relative path, so after the
+# hoist it sits at `<build root>/<extra>`. The app can therefore refer to it by a
+# path that resolves both in a checkout and after the hoist by committing a symlink
+# at `<APP_BASE>/<extra>` pointing back up to the real directory: in a checkout the
+# symlink resolves, here the symlink is replaced by the directory itself.
+APP_EXTRA=""
+if [ -f "${ENV_DIR}/APP_EXTRA" ]; then
+    APP_EXTRA="$(tr ',' ' ' < "${ENV_DIR}/APP_EXTRA")"
+fi
+
+STAGED_APP="${STAGE}/$(basename "$APP_BASE")"
+
 (
-    mv "${BUILD_DIR}/${APP_BASE}" "${STAGE}" &&
-    rm -rf "${BUILD_DIR}"/* &&
-    mv "${STAGE}/$(basename "$APP_BASE")"/* "${BUILD_DIR}"
+    set -e
+    mv "${BUILD_DIR}/${APP_BASE}" "${STAGE}"
+    for extra in ${APP_EXTRA}; do
+        extra="${extra#/}"; extra="${extra%/}"
+        if [ ! -d "${BUILD_DIR}/${extra}" ]; then
+            echo "APP_EXTRA names ${extra}, which is not a directory in the repo. Aborting" | indent
+            exit 1
+        fi
+        # A committed symlink at the same path is the checkout-side half of the
+        # trick; drop it so the real directory can take its place.
+        rm -rf "${STAGED_APP:?}/${extra}"
+        mkdir -p "$(dirname "${STAGED_APP}/${extra}")"
+        mv "${BUILD_DIR}/${extra}" "${STAGED_APP}/${extra}"
+        echo "Staged ${extra} into ${APP_BASE}/${extra}" | indent
+    done
+    rm -rf "${BUILD_DIR:?}"/*
+    mv "${STAGED_APP}"/* "${BUILD_DIR}"
 )
 
 if [ $? -ne 0 ]; then
@@ -30,4 +60,3 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Copied ${APP_BASE} to root of app successfully" | indent
-

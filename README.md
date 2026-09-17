@@ -14,6 +14,19 @@ Enter the Monorepo buildpack, which is a copy of [heroku-buildpack-multi-procfil
    `heroku buildpacks:add -a <app> https://github.com/lstoll/heroku-buildpack-monorepo`
 4. For each app, `git push git@heroku.com:<app> master`
 
+## APP_EXTRA — directories outside the app that the build needs (GAPartners fork)
+
+Set `APP_EXTRA=gems` (comma- or space-separated, relative to the repo root) to carry
+directories that live *beside* the app into the build root instead of discarding them —
+for example a `gems/` directory holding Rails engines the app's Gemfile references with
+`path:`. Each is moved into the app at the same relative path before the hoist, so it
+ends up at `<build root>/gems`.
+
+To make the same Gemfile path resolve in a plain checkout, commit a symlink at
+`<APP_BASE>/gems -> ../../gems`. In a checkout the symlink resolves; here the buildpack
+replaces it with the real directory. `Gemfile.lock`'s `PATH remote: gems/<engine>` is then
+identical in both layouts, which frozen-mode Bundler requires.
+
 Note: If you already have other buildpacks defined, you'll need to make sure that the heroku-buildpack-monorepo buildpack is defined first. You can do this by adding `-i 1` to the `heroku buildpacks:add` command.
 
 # Authors
