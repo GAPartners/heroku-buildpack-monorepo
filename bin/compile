@@ -39,9 +39,13 @@ STAGED_APP="${STAGE}/$(basename "$APP_BASE")"
     mv "${BUILD_DIR}/${APP_BASE}" "${STAGE}"
     for extra in ${APP_EXTRA}; do
         extra="${extra#/}"; extra="${extra%/}"
+        # Not an error: the config is meant to be set on the app BEFORE the
+        # directory exists in the branch it deploys, so the two can be sequenced
+        # independently. A typo shows up as "skipped" here and as a missing path
+        # gem at bundle install, which names the directory.
         if [ ! -d "${BUILD_DIR}/${extra}" ]; then
-            echo "APP_EXTRA names ${extra}, which is not a directory in the repo. Aborting" | indent
-            exit 1
+            echo "APP_EXTRA names ${extra}, which is not a directory in this checkout - skipped" | indent
+            continue
         fi
         # A committed symlink at the same path is the checkout-side half of the
         # trick; drop it so the real directory can take its place.
